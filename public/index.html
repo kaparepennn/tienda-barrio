@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Registro de ventas</title>
+</head>
+<body>
+  <h1>Registro de ventas de la tienda</h1>
+
+  <h2>Registrar venta</h2>
+  <form id="formVenta">
+    <label for="producto">Producto:</label>
+    <select id="producto" required></select>
+    <br><br>
+
+    <label for="cantidad">Cantidad:</label>
+    <input type="number" id="cantidad" min="1" required>
+    <br><br>
+
+    <button type="submit">Registrar venta</button>
+  </form>
+
+  <p id="mensaje"></p>
+
+  <h2>Productos disponibles</h2>
+  <button id="btnProductos" type="button">
+    Consultar productos
+  </button>
+  <ul id="listaProductos"></ul>
+
+  <h2>Ventas registradas</h2>
+  <button id="btnVentas" type="button">
+    Consultar ventas
+  </button>
+  <ul id="listaVentas"></ul>
+
+  <h2>Informe diario</h2>
+  <button id="btnInforme" type="button">
+    Consultar informe
+  </button>
+  <pre id="informe"></pre>
+
+  <script>
+    const producto = document.getElementById("producto");
+    const mensaje = document.getElementById("mensaje");
+
+    async function cargarProductos() {
+      const respuesta = await fetch("/api/productos");
+      const datos = await respuesta.json();
+
+      producto.replaceChildren();
+
+      datos.forEach(p => {
+        const opcion = document.createElement("option");
+        opcion.value = p.id_producto;
+        opcion.textContent =
+          `${p.nombre} - $${p.precio} (Stock: ${p.stock})`;
+        producto.appendChild(opcion);
+      });
+
+      const lista = document.getElementById("listaProductos");
+      lista.replaceChildren();
+
+      datos.forEach(p => {
+        const li = document.createElement("li");
+        li.textContent =
+          `${p.nombre}: $${p.precio}, existencias: ${p.stock}`;
+        lista.appendChild(li);
+      });
+    }
+
+    document.getElementById("formVenta")
+      .addEventListener("submit", async evento => {
+        evento.preventDefault();
+        mensaje.textContent = "Procesando venta...";
+
+        try {
+          const respuesta = await fetch("/api/ventas", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              id_producto: Number(producto.value),
+              cantidad: Number(
+                document.getElementById("cantidad").value
+              )
+            })
+          });
+
+          const resultado = await respuesta.json();
+
+          if (!respuesta.ok) {
+            throw new Error(resultado.error || "No se pudo registrar");
+          }
+
+          mensaje.textContent =
+            `Venta registrada. Total: $${resultado.total}`;
+
+          await cargarProductos();
+          await cargarVentas();
+          document.getElementById("formVenta").reset();
+        } catch (error) {
+          mensaje.textContent = error.message;
+        }
+      });
+
+    async function cargarVentas() {
+      const respuesta = await fetch("/api/ventas");
+      const datos = await respuesta.json();
+      const lista = document.getElementById("listaVentas");
+      lista.replaceChildren();
+
+      datos.forEach(v => {
+        const li = document.createElement("li");
+        li.textContent =
+          `Venta ${v.id_venta} - ${v.fecha} - Total: $${v.total}`;
+        lista.appendChild(li);
+      });
+    }
+
+    document.getElementById("btnProductos")
+      .addEventListener("click", cargarProductos);
+
+    document.getElementById("btnVentas")
+      .addEventListener("click", cargarVentas);
+
+    document.getElementById("btnInforme")
+      .addEventListener("click", async () => {
+        const respuesta = await fetch("/api/informes/diario");
+        const datos = await respuesta.json();
+        document.getElementById("informe").textContent =
+          JSON.stringify(datos, null, 2);
+      });
+
+    cargarProductos().catch(error => {
+      mensaje.textContent =
+        "No se pudieron cargar los productos. Verifica el servidor.";
+    });
+  </script>
+</body>
+</html>
